@@ -35,7 +35,11 @@ Install the latest release:
 curl -fsSL https://get.agent.golf/uplink | sudo sh
 ```
 
-The script downloads the `uplink` binary for your system, checks it against `SHA256SUMS`, and installs it to `/usr/local/bin`. Set `UPLINK_VERSION` to install a specific version, or `UPLINK_INSTALL_DIR` to install into another directory.
+The script downloads the `uplink` binary for your system, checks it against `SHA256SUMS`, and installs it to `/usr/local/bin`. To install a specific version or into another directory, pass `UPLINK_VERSION` or `UPLINK_INSTALL_DIR` after `sudo`, because `sudo` does not keep the variables of your shell:
+
+```bash
+curl -fsSL https://get.agent.golf/uplink | sudo UPLINK_VERSION=<version> UPLINK_INSTALL_DIR=/opt/uplink/bin sh
+```
 
 Sign in, then start Uplink:
 
@@ -51,7 +55,7 @@ To run Uplink as a systemd service, see [Install Uplink](https://docs.agent.golf
 The image is `ghcr.io/agentgolf/uplink`, for `linux/amd64` and `linux/arm64`. Each release has the tag `<version>`.
 
 ```bash
-docker run -d --name uplink --restart on-failure \
+docker run -d --name uplink --restart unless-stopped \
   -p 4318:4318 \
   -p 127.0.0.1:4319:4319 \
   -v uplink-state:/data/.ag-uplink \
@@ -59,6 +63,8 @@ docker run -d --name uplink --restart on-failure \
 
 docker exec -it uplink uplink auth login
 ```
+
+The `unless-stopped` restart policy starts Uplink again after it exits and after the Docker daemon restarts.
 
 ### Kubernetes
 
@@ -68,7 +74,13 @@ The Helm chart is `oci://ghcr.io/agentgolf/charts/uplink`. The chart version is 
 helm install uplink oci://ghcr.io/agentgolf/charts/uplink \
   --version <version> \
   --namespace uplink --create-namespace
+```
 
+The pod stays not ready until you sign in, so wait until its container runs, then sign in. `kubectl wait --for=create` needs kubectl 1.31 or later.
+
+```bash
+kubectl --namespace uplink wait --for=create pod/uplink-0 --timeout=5m
+kubectl --namespace uplink wait --for=jsonpath='{.status.phase}'=Running pod/uplink-0 --timeout=5m
 kubectl --namespace uplink exec -it uplink-0 -c uplink -- uplink auth login
 ```
 
@@ -91,10 +103,14 @@ Each release has `SHA256SUMS` and its keyless [cosign](https://docs.sigstore.dev
 ```bash
 cosign verify-blob SHA256SUMS \
   --bundle SHA256SUMS.sigstore.json \
-  --certificate-identity-regexp '^https://github\.com/agentgolf/[^/]+/\.github/workflows/uplink-chart-publish\.yml@refs/(tags/uplink-v.+|heads/main)$' \
+  --certificate-identity-regexp '^https://github\.com/agentgolf/monorepo/\.github/workflows/uplink-chart-publish\.yml@refs/(heads/main|tags/uplink-v[0-9]+\.[0-9]+\.[0-9]+)$' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 
+# Linux
 sha256sum --check --ignore-missing SHA256SUMS
+
+# macOS
+shasum -a 256 --check --ignore-missing SHA256SUMS
 ```
 
 ## Upgrade
