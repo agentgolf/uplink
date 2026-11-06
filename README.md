@@ -1,130 +1,115 @@
 # Uplink
 
-Uplink is the [agent.golf](https://agent.golf) service that you run in your own network. It receives the OpenTelemetry data of your coding agents (Claude Code, Codex, and OMP), keeps session content on your hosts, and sends session data to agent.golf.
+Uplink is the self-hosted [agent.golf](https://agent.golf) service. It receives the OpenTelemetry data of your coding agents, such as Claude Code, Codex, and omp. It keeps session content in your network, and sends session data to agent.golf.
 
-Prompts, responses, and sensitive tool details stay encrypted on the Uplink host. Uplink opens every connection, and agent.golf never connects to Uplink.
+This repository holds the Uplink [releases](https://github.com/agentgolf/uplink/releases). Full documentation: [docs.agent.golf/uplink/overview](https://docs.agent.golf/uplink/overview).
 
-Read [Uplink on Your Network](https://docs.agent.golf/concepts/uplink) to learn what Uplink does and what it sends.
-
-This repository holds the Uplink [releases](https://github.com/agentgolf/uplink/releases). It does not hold the source code.
-
-## Before you install
-
-- An agent.golf organization.
-- The `uplink` role in that organization for the member who signs in Uplink.
-- A supported host, a Docker host, or a Kubernetes cluster, with a persistent disk for the state directory.
-- Outbound access from Uplink to `api.agent.golf` on port 443 and to the agent.golf data connection on port 7422.
-- Inbound access to port 4318 from the machines where your coding agents run.
-
-## Supported systems
-
-| System | Architecture | Tested on |
-| --- | --- | --- |
-| macOS 15 and later | Apple silicon (`arm64`) | macOS 15 and 26 |
-| Linux with glibc 2.34 or later | `amd64`, `arm64` | Ubuntu 22.04, 24.04, and 26.04; Debian 13; RHEL 9 and 10; Amazon Linux 2023 |
-
-Windows, Intel Macs, and Linux distributions with musl libc, such as Alpine Linux, are not supported.
+Uplink runs on Linux (`amd64` or `arm64`, glibc 2.34 or later) and on macOS 26 or later on Apple silicon.
 
 ## Install
 
-### Host
+Each release has three forms: the `uplink` binary, the container image, and the Helm chart.
 
-Install the latest release:
+| Form          | Get it                                                                     |
+| ------------- | -------------------------------------------------------------------------- |
+| Binary        | `curl -fsSL https://get.agent.golf/uplink \| sh`                           |
+| Container     | `docker pull ghcr.io/agentgolf/uplink:<version>`                           |
+| Helm chart    | `oci://ghcr.io/agentgolf/charts/uplink`, chart version `<version>`         |
+
+Replace `<version>` with the version of the [latest release](https://github.com/agentgolf/uplink/releases/latest). The install script checks the binary against `SHA256SUMS`. The notes of each release show the command that checks the signature of `SHA256SUMS`. See [Install Uplink](https://docs.agent.golf/uplink/install).
+
+## Create an Uplink key
+
+An Uplink key (`agu_...`) starts an uplink instance. It belongs to your workspace. You need the **Manage Uplink Keys** permission.
+
+1. In the dashboard, open **Settings > Uplink > Self-Hosted**.
+2. In **Keys That Start Uplink Instances**, enter a **Key Name**, for example the host or the cluster.
+3. Select **Create Uplink Key**.
+4. Copy the secret. agent.golf cannot show it again.
+
+## Start Uplink
+
+Use the commands of the **Uplink Instance Setup** card in the dashboard. Put your key in place of `<uplink-key>`.
+
+Docker:
 
 ```bash
-curl -fsSL https://get.agent.golf/uplink | sudo sh
+docker run -d --name uplink --restart on-failure \
+  -e AGENTGOLF_UPLINK_KEY=<uplink-key> \
+  -p 4318:4318 -p 127.0.0.1:4319:4319 \
+  -v uplink-state:/data/.ag-uplink \
+  ghcr.io/agentgolf/uplink:<version>
 ```
 
-The script downloads the `uplink` binary for your system, checks it against `SHA256SUMS`, and installs it to `/usr/local/bin`. To install a specific version or into another directory, pass `UPLINK_VERSION` or `UPLINK_INSTALL_DIR` after `sudo`, because `sudo` does not keep the variables of your shell:
+Kubernetes:
 
 ```bash
-curl -fsSL https://get.agent.golf/uplink | sudo UPLINK_VERSION=<version> UPLINK_INSTALL_DIR=/opt/uplink/bin sh
+kubectl create namespace uplink
+kubectl --namespace uplink create secret generic uplink-key \
+  --from-literal=uplink-key=<uplink-key>
+helm install uplink oci://ghcr.io/agentgolf/charts/uplink --version <version> \
+  --namespace uplink \
+  --set uplinkKey.existingSecret=uplink-key
 ```
 
-Sign in, then start Uplink:
+Linux / macOS:
 
 ```bash
-uplink auth login
+curl -fsSL https://get.agent.golf/uplink | sh
+export AGENTGOLF_UPLINK_KEY=<uplink-key>
 uplink
 ```
 
-To run Uplink as a systemd service, see [Install Uplink](https://docs.agent.golf/uplink/install#run-uplink-as-a-systemd-service).
+The uplink instance shows in the **Uplink** section of the dashboard after its first report.
 
-### Docker
+## Connect your harness
 
-The image is `ghcr.io/agentgolf/uplink`, for `linux/amd64` and `linux/arm64`. Each release has the tag `<version>`.
+Each user connects their own harness with a personal publishing key (`agk_...`). The harness sends the key in the `x-agentgolf-publishing-key` header, so agent.golf links the sessions to the user.
 
-```bash
-docker run -d --name uplink --restart unless-stopped \
-  -p 4318:4318 \
-  -p 127.0.0.1:4319:4319 \
-  -v uplink-state:/data/.ag-uplink \
-  ghcr.io/agentgolf/uplink:<version>
-
-docker exec -it uplink uplink auth login
-```
-
-The `unless-stopped` restart policy starts Uplink again after it exits and after the Docker daemon restarts.
-
-### Kubernetes
-
-The Helm chart is `oci://ghcr.io/agentgolf/charts/uplink`. The chart version is the Uplink version.
+With the [`agentgolf` CLI](https://github.com/agentgolf/cli):
 
 ```bash
-helm install uplink oci://ghcr.io/agentgolf/charts/uplink \
-  --version <version> \
-  --namespace uplink --create-namespace
+AGENTGOLF_API_BASE_URL=https://api.agent.golf agentgolf harness setup claude-code --endpoint 'http://127.0.0.1:4318'
 ```
 
-The pod stays not ready until you sign in, so wait until its container runs, then sign in. `kubectl wait --for=create` needs kubectl 1.31 or later.
+Use `claude-code`, `codex`, or `omp`. Put the OTLP endpoint of your uplink instance in place of `http://127.0.0.1:4318`.
 
-```bash
-kubectl --namespace uplink wait --for=create pod/uplink-0 --timeout=5m
-kubectl --namespace uplink wait --for=jsonpath='{.status.phase}'=Running pod/uplink-0 --timeout=5m
-kubectl --namespace uplink exec -it uplink-0 -c uplink -- uplink auth login
-```
+Or in the dashboard:
 
-Read the chart values with `helm show values oci://ghcr.io/agentgolf/charts/uplink --version <version>`.
+1. Open **Settings > Uplink > Publishing Keys**.
+2. Enter a **Key Name**, and select **Create Publishing Key**. Copy the secret.
+3. In **Harness Setup**, enter the **OTLP Endpoint of Your Uplink Instance**, and select your harness.
+4. Copy the settings into your harness.
 
-## Sign in
+Restart the harness after you change its settings. See [Agent Harnesses](https://docs.agent.golf/harnesses/overview).
 
-`uplink auth login` prints a sign-in URL and a code. Open the URL, and approve the sign-in as a member with the `uplink` role.
+## Commands
 
-Uplink keeps its credentials in its state directory. Without credentials, Uplink does not exit. It stays not ready and logs the `uplink auth login` instruction every 30 seconds. After you sign in, Uplink continues its startup without a restart.
+| Command                                    | Result                                                                                                       |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| `uplink`                                   | Start the uplink instance.                                                                                   |
+| `uplink -version`                          | Show the version.                                                                                            |
+| `uplink -help`                             | Show every flag.                                                                                             |
+| `uplink auth create-key -name <name>`      | Sign in one time, create an Uplink key, and print its secret, for example for a Kubernetes Secret.           |
+| `uplink auth login -key [-name <name>]`    | Sign in one time, create an Uplink key, and save it in the `uplink-key` file that the uplink instance reads. |
+| `uplink auth status`                       | Show which Uplink key the uplink instance uses. It never shows the key and changes nothing.                  |
+| `uplink auth logout`                       | Revoke the sign-in of the credentials file on agent.golf, and remove the file.                               |
 
-- Sign in one time for each Uplink instance. Instances must not share a credentials file.
-- Keep the state directory on writable persistent storage.
-- If Uplink stays stopped for more than 30 days, run `uplink auth login` again.
+Main settings. Each setting is an environment variable. Some also have a flag, which overrides the variable.
 
-## Verify a download
+| Variable                                  | Flag               | Default                 | Purpose                                                       |
+| ----------------------------------------- | ------------------ | ----------------------- | ------------------------------------------------------------- |
+| `AGENTGOLF_UPLINK_KEY`                    |                    | Empty                   | The Uplink key.                                               |
+| `AGENTGOLF_UPLINK_KEY_FILE`               | `-uplink-key-file` | Empty                   | A file that holds the Uplink key, for example a mounted Secret. |
+| `AGENTGOLF_WORKSPACE_ID`                  | `-workspace-id`    | Empty                   | Stop when the key belongs to another workspace.               |
+| `OTLP_HTTP_HOST`, `OTLP_HTTP_PORT`        |                    | `127.0.0.1`, `4318`     | The OTLP listener for your harnesses.                         |
+| `OTLP_TLS_CERT_FILE`, `OTLP_TLS_KEY_FILE` |                    | Empty                   | Serve the OTLP listener over HTTPS.                           |
+| `OTLP_ADMIN_HOST`, `OTLP_ADMIN_PORT`      |                    | `127.0.0.1`, `4319`     | `/healthz`, `/readyz`, and `/metrics`.                        |
+| `UPLINK_STORE_DIR`                        | `-store-dir`       | In `~/.ag-uplink/prod/` | Where Uplink keeps session data.                              |
+| `UPLINK_LOG_LEVEL`                        | `-log-level`       | `info`                  | `error`, `warn`, `info`, `debug`, or `trace`.                 |
 
-Each release has `SHA256SUMS` and its keyless [cosign](https://docs.sigstore.dev/) signature bundle, `SHA256SUMS.sigstore.json`. The notes of each release show the exact `cosign verify-blob` command for that release.
-
-```bash
-cosign verify-blob SHA256SUMS \
-  --bundle SHA256SUMS.sigstore.json \
-  --certificate-identity-regexp '^https://github\.com/agentgolf/monorepo/\.github/workflows/uplink-chart-publish\.yml@refs/(heads/main|tags/uplink-v[0-9]+\.[0-9]+\.[0-9]+)$' \
-  --certificate-oidc-issuer https://token.actions.githubusercontent.com
-
-# Linux
-sha256sum --check --ignore-missing SHA256SUMS
-
-# macOS
-shasum -a 256 --check --ignore-missing SHA256SUMS
-```
-
-## Upgrade
-
-- **Host:** run the install script again, then restart Uplink.
-- **Docker:** remove the container and run it again with the new tag and the same volume.
-- **Kubernetes:** run `helm upgrade` with the new `--version` and the same values.
-
-The state directory keeps the credentials, so you do not sign in again.
+The container image binds both listeners on all interfaces. See [Configure Uplink](https://docs.agent.golf/uplink/configuration).
 
 ## Documentation
 
-- [Uplink on Your Network](https://docs.agent.golf/concepts/uplink)
-- [Install Uplink](https://docs.agent.golf/uplink/install)
-- [Verify the installation](https://docs.agent.golf/uplink/verify)
-- [Configuration](https://docs.agent.golf/uplink/configuration)
-- [Troubleshooting](https://docs.agent.golf/uplink/troubleshooting)
+[docs.agent.golf/uplink/overview](https://docs.agent.golf/uplink/overview)
