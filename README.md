@@ -1,6 +1,6 @@
 # Uplink
 
-Uplink is the self-hosted [agent.golf](https://agent.golf) service. It receives the OpenTelemetry data of your coding agents, such as Claude Code, Codex, and omp. It keeps session content in your network, and sends session data to agent.golf.
+Uplink is the self-hosted [Agent Golf](https://agent.golf) service. It receives the OpenTelemetry data of your coding agents, such as Claude Code, Codex, and omp. It keeps session content in your network, and sends session data to Agent Golf.
 
 This repository holds the Uplink [releases](https://github.com/agentgolf/uplink/releases). Full documentation: [docs.agent.golf/uplink/overview](https://docs.agent.golf/uplink/overview).
 
@@ -25,7 +25,7 @@ An Uplink key (`agu_...`) starts an uplink instance. It belongs to your workspac
 1. In the dashboard, open **Settings > Uplink > Self-Hosted**.
 2. In **Keys That Start Uplink Instances**, enter a **Key Name**, for example the host or the cluster.
 3. Select **Create Uplink Key**.
-4. Copy the secret. agent.golf cannot show it again.
+4. Copy the secret. Agent Golf cannot show it again.
 
 ## Start Uplink
 
@@ -64,7 +64,7 @@ The uplink instance shows in the **Uplink** section of the dashboard after its f
 
 ## Connect your harness
 
-Each user connects their own harness with a personal publishing key (`agk_...`). The harness sends the key in the `x-agentgolf-publishing-key` header, so agent.golf links the sessions to the user.
+Each user connects their own harness with a personal publishing key (`agk_...`). The harness sends the key in the `x-agentgolf-publishing-key` header, so Agent Golf links the sessions to the user.
 
 With the [`agentgolf` CLI](https://github.com/agentgolf/cli):
 
@@ -93,7 +93,7 @@ Restart the harness after you change its settings. See [Agent Harnesses](https:/
 | `uplink auth create-key -name <name>`      | Sign in one time, create an Uplink key, and print its secret, for example for a Kubernetes Secret.           |
 | `uplink auth login -key [-name <name>]`    | Sign in one time, create an Uplink key, and save it in the `uplink-key` file that the uplink instance reads. |
 | `uplink auth status`                       | Show which Uplink key the uplink instance uses. It never shows the key and changes nothing.                  |
-| `uplink auth logout`                       | Revoke the sign-in of the credentials file on agent.golf, and remove the file.                               |
+| `uplink auth logout`                       | Revoke the sign-in of the credentials file on Agent Golf, and remove the file.                               |
 
 Main settings. Each setting is an environment variable. Some also have a flag, which overrides the variable.
 
