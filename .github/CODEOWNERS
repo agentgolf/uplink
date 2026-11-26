@@ -1,0 +1,3 @@
+# The "default branch review" organization ruleset requires a Code Owner review.
+# GitHub does not count an author's own approval, so two owners are listed.
+* @rbright @kthomas
